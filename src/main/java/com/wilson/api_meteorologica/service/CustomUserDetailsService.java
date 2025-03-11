@@ -10,12 +10,22 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-
-
+/**
+ * Servicio que implementa UserDetailsService para la autenticación en Spring Security.
+ * Carga los detalles de un usuario desde la base de datos según su nombre de usuario.
+ */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
     @Autowired
     private UserRepository userRepository;
+
+    /**
+     * Busca un usuario en la base de datos por su nombre de usuario.
+     * Si el usuario no existe, lanza una excepción UsernameNotFoundException.
+     * @param username Nombre de usuario ingresado en el login.
+     * @return UserDetails con la información del usuario autenticado.
+     * @throws UsernameNotFoundException Si el usuario no se encuentra en la base de datos.
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)

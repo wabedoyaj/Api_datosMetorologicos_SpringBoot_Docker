@@ -50,7 +50,9 @@ public class AuthController {
     @Autowired
     PasswordEncoder passwordEncoder;
 
-
+    /**
+     * Gestiona el registro y autenticación de usuarios
+     */
     @PostMapping("/register")
     @Operation(summary = "Registro de usuario", description = "Registro de un nuevo usuario")
     public ResponseEntity<?> registerUser(@Valid @RequestBody NewUser newUser,BindingResult bindingResult) {
@@ -76,25 +78,17 @@ public class AuthController {
     public ResponseEntity<?> login(@Valid @RequestBody LoginUser loginUser) {
         User user = userRepository.findByUsername(loginUser.getUsername())
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
-
-        System.out.println("Contraseña ingresada: " + loginUser.getPassword());
-        System.out.println("Contraseña en BD: " + user.getPassword());
-
-        // 🚀 Aquí es donde se compara correctamente
+        // Aquí es donde se compara correctamente
         if (!passwordEncoder.matches(loginUser.getPassword(), user.getPassword())) {
             System.err.println("⚠ ERROR: Las contraseñas NO coinciden.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales incorrectas.");
         }
-
-        System.out.println("✔ Contraseñas coinciden, generando token...");
-
         // Convertir a PrincipalUser para usar authorities
         PrincipalUser principalUser = PrincipalUser.build(user);
         Authentication authentication = new UsernamePasswordAuthenticationToken(principalUser, null, principalUser.getAuthorities());
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
-        System.out.println("Token generado: " + jwt);
 
         return ResponseEntity.ok(new JwtDto(jwt));
     }

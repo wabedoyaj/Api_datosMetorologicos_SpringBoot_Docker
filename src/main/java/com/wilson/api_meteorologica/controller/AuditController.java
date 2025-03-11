@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * Administra auditorías sobre las consultas realizadas en la API
+ */
 @RestController
 @RequestMapping("/api/audit")
 @Tag(name = "Auditoria", description = "Endpoints para listado de usuarios")

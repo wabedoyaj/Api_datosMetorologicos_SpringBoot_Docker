@@ -14,20 +14,31 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-
+/**
+ * Maneja los errores de autenticación cuando un usuario intenta acceder a recursos protegidos sin estar autenticado.
+ * Implementa AuthenticationEntryPoint para personalizar la respuesta de error HTTP 401 (No autorizado).
+ */
 @Component
 public class JwtEntryPoint implements AuthenticationEntryPoint {
 
     private final static Logger logger = LoggerFactory.getLogger(JwtEntryPoint.class);
 
+    /**
+     * Se ejecuta cuando un usuario no autenticado intenta acceder a un recurso protegido.
+     * Devuelve una respuesta en formato JSON con detalles del error.
+     * @param req  Solicitud HTTP.
+     * @param res  Respuesta HTTP.
+     * @param e    Excepción de autenticación capturada.
+     */
     @Override
     public void commence(HttpServletRequest req, HttpServletResponse res, AuthenticationException e)
             throws IOException, ServletException {
         logger.error("Error en el metodo commence");
-        //res.sendError(HttpServletResponse.SC_UNAUTHORIZED,"No autorizado");
+
         res.setContentType("application/json");
         res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        // Crear la respuesta con los datos requeridos
+
+        // Crear la respuesta en formato JSON con detalles del error
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", LocalDateTime.now().toString());
         errorDetails.put("status", HttpServletResponse.SC_UNAUTHORIZED);
@@ -35,7 +46,7 @@ public class JwtEntryPoint implements AuthenticationEntryPoint {
         errorDetails.put("message", "No autorizado");
         errorDetails.put("path", req.getRequestURI());
 
-        // Convertir el Map a JSON y enviarlo en la respuesta
+        // Convertir la respuesta a JSON y enviarla
         ObjectMapper objectMapper = new ObjectMapper();
         res.getWriter().write(objectMapper.writeValueAsString(errorDetails));
     }

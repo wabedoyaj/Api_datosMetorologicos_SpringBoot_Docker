@@ -4,6 +4,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Contiene el token JWT devuelto tras autenticarse
+ */
 @Getter
 @Setter
 @NoArgsConstructor

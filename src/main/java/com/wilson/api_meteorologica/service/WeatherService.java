@@ -26,7 +26,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
+/**
+ * Servicio que gestiona las consultas meteorológicas utilizando la API de OpenWeatherMap.
+ * Proporciona datos del clima actual, pronóstico y calidad del aire.
+ */
 @Service
 public class WeatherService {
     @Value("${openweathermap.api.key}")
@@ -34,13 +37,18 @@ public class WeatherService {
     @Autowired
     private AuditConsultatiorepository consultatiorepository;
     @Autowired
-    private ObjectMapper objectMapper; // Se inyecta el ObjectMapper
+    private ObjectMapper objectMapper; // // Mapea objetos a JSON
     private final WebClient webClient = WebClient.builder().baseUrl("https://api.openweathermap.org/data/2.5").build();
     private static final Logger logger =  LoggerFactory.getLogger(WeatherService.class);
 
+    /**
+     * Obtiene el clima actual de una ciudad desde OpenWeatherMap.
+     * Los resultados se almacenan en caché para mejorar el rendimiento.
+     * @param city Nombre de la ciudad a consultar.
+     * @return Objeto WeatherDTO con la información del clima.
+     */
     @Cacheable("currentWeather") // Caché para el clima actual
     public WeatherDTO getCurrentWeather(String city) {
-        System.out.println("Llamando a la API externa para obtener datos de: " + city);
         WeatherResponse response = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/weather")
                         .queryParam("q", city)
@@ -58,11 +66,15 @@ public class WeatherService {
                 response.getWind().getSpeed(),
                 LocalDateTime.now()
         );
-
     }
+    /**
+     * Obtiene el pronóstico del clima para los próximos 5 días.
+     * Los datos se almacenan en caché para reducir llamadas innecesarias a la API.
+     * @param city Nombre de la ciudad a consultar.
+     * @return Objeto WeatherForecastDTO con la información del pronóstico.
+     */
     @Cacheable("forecastWeather") // Caché para el pronóstico
     public WeatherForecastDTO getWeatherForecast(String city) {
-        System.out.println("Llamando a la API externa para obtener datos de: " + city);
         WeatherForecastResponse response = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/forecast")
                         .queryParam("q", city)
@@ -72,7 +84,7 @@ public class WeatherService {
                 .retrieve()
                 .bodyToMono(WeatherForecastResponse.class)
                 .block();
-        // Convertir la respuesta a WeatherForecastDTO
+        //  // Convertir la respuesta en una lista de detalles del pronóstico
         List<WeatherForecastDTO.ForecastDetail> forecastList = response.getList().stream().map(forecast -> {
             double rainMm = forecast.getRain() != null ? forecast.getRain().get_3h() : 0.0;
             return new WeatherForecastDTO.ForecastDetail(
@@ -86,12 +98,19 @@ public class WeatherService {
                     rainMm
             );
         }).collect(Collectors.toList());
-
         return new WeatherForecastDTO(response.getCity().getName(), LocalDateTime.now(), forecastList);
     }
+    /**
+     * Obtiene información sobre la calidad del aire en una ciudad específica.
+     * Primero obtiene las coordenadas de la ciudad y luego consulta la API de contaminación.
+     * Los datos se almacenan en caché para evitar consultas repetidas.
+     *
+     * @param city Nombre de la ciudad a consultar.
+     * @return Objeto AirQualityDTO con la información sobre la calidad del aire.
+     */
     @Cacheable("airQuality") // Caché para la contaminación del aire
     public AirQualityDTO getAirQuality(String city) {
-        System.out.println("Llamando a la API externa para obtener datos de: " + city);
+        // Obtener coordenadas geográficas de la ciudad
         WeatherResponse geoResponse = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/weather")
                         .queryParam("q", city)
@@ -104,6 +123,7 @@ public class WeatherService {
         double lat = geoResponse.getCoord().getLat();
         double lon = geoResponse.getCoord().getLon();
 
+        // Obtener calidad del aire con las coordenadas
         AirQualityResponse airResponse = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/air_pollution")
                         .queryParam("lat", lat)
@@ -130,10 +150,18 @@ public class WeatherService {
 
         return new AirQualityDTO(city, LocalDateTime.now(), airQuality, pollutants);
     }
+
+    /**
+     * Registra una consulta meteorológica en la base de datos para auditoría.
+     * Se almacena el usuario que hizo la consulta, el tipo de consulta y la ciudad consultada.
+     *
+     * @param username       Nombre del usuario que realizó la consulta.
+     * @param queryType      Tipo de consulta (ej. "currentWeather", "forecastWeather").
+     * @param city           Ciudad consultada.
+     * @param responseObject Respuesta de la API almacenada en formato JSON.
+     */
     @Transactional
     public void registerQuery(String username, String queryType, String city, Object responseObject) {
-        logger.info("Intentando guardar consulta en la base de datos...");
-        logger.info("Usuario: {} | Tipo: {} | Ciudad: {}", username, queryType, city);
         String responseJson;
         try {
             responseJson = objectMapper.writeValueAsString(responseObject);
@@ -142,7 +170,7 @@ public class WeatherService {
         }
         AuditConsultation query = new AuditConsultation(username,queryType,city, LocalDateTime.now(),responseJson);
         consultatiorepository.save(query);
-        consultatiorepository.flush(); // 🔹 Forzar escritura inmediata en la BD
-        logger.info("✅ Consulta guardada correctamente.");
+        consultatiorepository.flush(); // Forzar escritura inmediata en la BD
+        logger.info("Consulta guardada correctamente.");
     }
 }

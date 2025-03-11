@@ -7,7 +7,10 @@ import lombok.NoArgsConstructor;
 
 
 import java.time.LocalDateTime;
-
+/**
+ * DTO para representar los datos del clima en una ciudad.
+ * Se utiliza para enviar la información meteorológica en las respuestas de la API.
+ */
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor

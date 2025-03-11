@@ -4,9 +4,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Estructura los errores devueltos por la API
+ */
 @Getter
 public class ErrorResponseDTO {
-    private static final String DEFAULT_MESSAGE = "⚠️ Has excedido el límite de 100 solicitudes por hora.";
+    private static final String DEFAULT_MESSAGE = "Has excedido el límite de 100 solicitudes por hora.";
     private String message;
 
     public ErrorResponseDTO() {

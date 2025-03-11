@@ -7,7 +7,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-
+/**
+ * Entidad que representa el historial de consultas realizadas a la API.
+ * Registra información sobre el usuario, tipo de consulta, ciudad y la respuesta obtenida.
+ */
 @Entity
 @Table(name = "audit_consultation")
 @Getter @Setter
@@ -26,6 +29,15 @@ public class AuditConsultation {
     @Column(columnDefinition = "TEXT")
     private String responseApi;
 
+    /**
+     * Constructor para inicializar una consulta de auditoría.
+     *
+     * @param username   Usuario que realizó la consulta
+     * @param queryType  Tipo de consulta realizada
+     * @param city       Ciudad consultada
+     * @param dateQuery  Fecha y hora de la consulta
+     * @param responseApi Respuesta obtenida de la API
+     */
     public AuditConsultation(String username, String queryType, String city,
                              LocalDateTime dateQuery, String responseApi) {
         this.username = username;

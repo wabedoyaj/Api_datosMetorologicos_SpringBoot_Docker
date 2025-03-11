@@ -20,6 +20,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Proporciona información del clima y calidad del aire.
+ */
 @RestController
 @RequestMapping("/api/weather")
 @Tag(name = "Clima", description = "Endpoints relacionados con el clima")
@@ -40,7 +43,7 @@ public class WeatherController {
         this.rateLimiterService = rateLimiterService;
     }
 
-    @GetMapping("/current/{city}") //Clima actual por ciudad
+    @GetMapping("/current/{city}") //Devuelve el clima actual de una ciudad.
     @Operation(summary = "Obtener el clima actual", description = "Obtiene el clima actual de una ciudad específica")
     public ResponseEntity<?> getCurrentWeather(@PathVariable String city) {
         String username = securityService.getAuthenticatedUser();
@@ -52,7 +55,7 @@ public class WeatherController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/forecast/{city}") //pronostico 5 dias para una ciudad
+    @GetMapping("/forecast/{city}") //devuelve pronostico 5 dias para una ciudad
     @Operation(summary = "Obtener pronóstico", description = "Obtiene el pronóstico del clima para los próximos 5 días")
     public ResponseEntity<?> getWeatherForecast(@PathVariable String city) {
         String username = securityService.getAuthenticatedUser();
