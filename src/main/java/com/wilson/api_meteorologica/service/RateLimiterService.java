@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit;
 public class RateLimiterService {
 
     private final RedisTemplate<String, String> redisTemplate;
-    private static final int MAX_REQUESTS = 3; // Máximo 100 solicitudes por usuario
-    private static final long TIME_WINDOW = 2; // 1 hora
+    private static final int MAX_REQUESTS = 100; // Máximo 100 solicitudes por usuario
+    private static final long TIME_WINDOW = 1; // 1 hora
 
     public RateLimiterService(RedisTemplate<String, String> redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -24,7 +24,7 @@ public class RateLimiterService {
 
         // Si es la primera solicitud, establecer tiempo de expiración (1 hora)
         if (requestCount != null && requestCount == 1) {
-            redisTemplate.expire(key, TIME_WINDOW, TimeUnit.MINUTES);
+            redisTemplate.expire(key, TIME_WINDOW, TimeUnit.HOURS);
         }
 
         // Si supera el límite, denegar acceso

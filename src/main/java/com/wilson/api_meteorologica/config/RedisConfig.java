@@ -12,11 +12,15 @@ public class RedisConfig {
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        return new LettuceConnectionFactory();
+        // Especifica el host y puerto para el contenedor Redis
+        LettuceConnectionFactory factory = new LettuceConnectionFactory("redis", 6379);
+        factory.setTimeout(60000); // Establece el tiempo de espera de la conexión (ajusta si es necesario)
+        return factory;
     }
 
     @Bean
-    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
+    public RedisTemplate<String, String> redisTemplate(
+            RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());

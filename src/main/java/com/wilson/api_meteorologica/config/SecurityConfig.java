@@ -33,6 +33,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers("/api/auth/**").permitAll() // Permitir endpoints de autenticación sin autenticación
+                        .requestMatchers("/actuator/health").permitAll() // Permite acceso libre a Actuator
                         .anyRequest().authenticated() // Proteger el resto de endpoints
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new JwtEntryPoint()))
