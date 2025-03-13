@@ -1,6 +1,8 @@
 package com.wilson.api_meteorologica.config;
 
 
+import com.wilson.api_meteorologica.security.JwtAuthFilter;
+import com.wilson.api_meteorologica.security.JwtEntryPoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,12 +1,14 @@
 package com.wilson.api_meteorologica.service;
 
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 /**
  * Servicio para limitar la cantidad de solicitudes por usuario en un período de tiempo.
- * Utiliza Redis para almacenar y rastrear el número de solicitudes realizadas por cada usuario.
  */
 @Service
 public class RateLimiterService {
@@ -20,26 +22,44 @@ public class RateLimiterService {
      * @param redisTemplate Instancia de RedisTemplate para interactuar con Redis.
      */
     public RateLimiterService(RedisTemplate<String, String> redisTemplate) {
+
         this.redisTemplate = redisTemplate;
+    }
+    /**
+     * Verifica si un usuario puede realizar una nueva solicitud.
+     * @param userId  ID del usuario.
+     * @param endpoint  Nombre del endpoint para rate-limiting individual.
+     * @return `true` si la solicitud está permitida, `false` si ha superado el límite.
+     */
+    public boolean tryConsume(String userId, String endpoint) {
+        String key = "rate-limit:" + userId + ":" + endpoint; // Clave única para usuario + endpoint
+
+        List<Object> results = redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) {
+                operations.multi(); // Inicia transacción en Redis
+                Long requestCount = operations.opsForValue().increment(key);
+
+                if (requestCount != null && requestCount == 1) {
+                    operations.expire(key, TIME_WINDOW, TimeUnit.HOURS);
+                }
+                return operations.exec(); // Ejecuta la transacción
+            }
+        });
+
+        Long requestCount = results != null && !results.isEmpty() ? (Long) results.get(0) : 0;
+        return requestCount != null && requestCount <= MAX_REQUESTS;
     }
 
     /**
-     * Verifica si un usuario puede realizar una nueva solicitud según su historial en Redis.
-     * @param userId ID del usuario que realiza la solicitud.
-     * @return true si la solicitud está permitida, false si ha superado el límite.
+     * Obtiene el tiempo restante antes de que el usuario pueda hacer nuevas solicitudes.
+     * @param userId  ID del usuario.
+     * @param endpoint  Endpoint específico.
+     * @return Tiempo restante en segundos o 0 si ya puede hacer solicitudes.
      */
-    public boolean tryConsume(String userId) {
-        String key = "rate-limit:" + userId;
-
-        // Incrementar el contador en Redis para rastrear el número de solicitudes del usuario
-        Long requestCount = redisTemplate.opsForValue().increment(key);
-
-        // Si es la primera solicitud, establecer tiempo de expiración (1 hora)
-        if (requestCount != null && requestCount == 1) {
-            redisTemplate.expire(key, TIME_WINDOW, TimeUnit.HOURS);
-        }
-
-        // Retorna true si el usuario no ha superado el límite de solicitudes
-        return requestCount != null && requestCount <= MAX_REQUESTS;
+    public long getTimeUntilReset(String userId, String endpoint) {
+        String key = "rate-limit:" + userId + ":" + endpoint;
+        Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+        return (ttl != null && ttl > 0) ? ttl : 0;
     }
 }

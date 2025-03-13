@@ -1,4 +1,4 @@
-package com.wilson.api_meteorologica.config;
+package com.wilson.api_meteorologica.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;

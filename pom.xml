@@ -120,7 +120,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
-
 			<!-- Bucket4j para Rate Limiting -->
 		<!-- https://mvnrepository.com/artifact/com.github.vladimir-bukhtoyarov/bucket4j-core -->
 		<dependency>
@@ -128,8 +127,6 @@
 			<artifactId>bucket4j-core</artifactId>
 			<version>8.0.1</version>
 		</dependency>
-
-
 		<!-- Cliente Redis Lettuce -->
 		<!-- https://mvnrepository.com/artifact/io.lettuce/lettuce-core -->
 		<dependency>
@@ -146,6 +143,7 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<!-- SLF4J API -->
 	</dependencies>
 
 		<build>

@@ -1,17 +1,13 @@
 package com.wilson.api_meteorologica.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.wilson.api_meteorologica.DTO.AirQualityDTO;
 import com.wilson.api_meteorologica.DTO.WeatherDTO;
 import com.wilson.api_meteorologica.DTO.WeatherForecastDTO;
-import com.wilson.api_meteorologica.entity.AuditConsultation;
-import com.wilson.api_meteorologica.repository.AuditConsultatiorepository;
 import com.wilson.api_meteorologica.responApi.AirQualityResponse;
 import com.wilson.api_meteorologica.responApi.WeatherForecastResponse;
 import com.wilson.api_meteorologica.responApi.WeatherResponse;
-import jakarta.transaction.Transactional;
-import org.json.JSONObject;
+import com.wilson.api_meteorologica.security.SecurityService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.util.UriComponentsBuilder;
+
 
 
 import java.time.LocalDateTime;
@@ -35,11 +31,17 @@ public class WeatherService {
     @Value("${openweathermap.api.key}")
     private String apiKey;
     @Autowired
-    private AuditConsultatiorepository consultatiorepository;
+    private AuditService auditService;
     @Autowired
-    private ObjectMapper objectMapper; // // Mapea objetos a JSON
-    private final WebClient webClient = WebClient.builder().baseUrl("https://api.openweathermap.org/data/2.5").build();
+    private SecurityService securityService;
+    private final WebClient webClient;
     private static final Logger logger =  LoggerFactory.getLogger(WeatherService.class);
+    @Autowired
+    public WeatherService(@Value("${openweathermap.api.base-url}") String baseUrl) {
+        this.webClient = WebClient.builder()
+                .baseUrl(baseUrl)  // Usa la URL desde application.properties
+                .build();
+    }
 
     /**
      * Obtiene el clima actual de una ciudad desde OpenWeatherMap.
@@ -58,7 +60,7 @@ public class WeatherService {
                 .retrieve()
                 .bodyToMono(WeatherResponse.class)
                 .block();
-        return new WeatherDTO(
+        WeatherDTO weatherDTO =  new WeatherDTO(
                 response.getName(),
                 response.getWeather().get(0).getDescription(),
                 response.getMain().getTemp(),
@@ -66,6 +68,12 @@ public class WeatherService {
                 response.getWind().getSpeed(),
                 LocalDateTime.now()
         );
+        // Obtener usuario autenticado desde SecurityService
+        String username = securityService.getAuthenticatedUser();
+        // Registrar auditoría con el usuario autenticado
+        auditService.registerQuery(username, "currentWeather", city, weatherDTO);
+
+        return weatherDTO;
     }
     /**
      * Obtiene el pronóstico del clima para los próximos 5 días.
@@ -98,7 +106,10 @@ public class WeatherService {
                     rainMm
             );
         }).collect(Collectors.toList());
-        return new WeatherForecastDTO(response.getCity().getName(), LocalDateTime.now(), forecastList);
+        WeatherForecastDTO forecastDTO = new WeatherForecastDTO(response.getCity().getName(), LocalDateTime.now(), forecastList);
+        // Registrar auditoría con el usuario autenticado
+        auditService.registerQuery(securityService.getAuthenticatedUser(), "forecastWeather", city, forecastDTO);
+        return forecastDTO;
     }
     /**
      * Obtiene información sobre la calidad del aire en una ciudad específica.
@@ -135,42 +146,24 @@ public class WeatherService {
                 .block();
 
         AirQualityResponse.AirData airData = airResponse.getList().get(0);
-        AirQualityDTO.AirQuality airQuality = new AirQualityDTO.AirQuality(airData.getMain().getAqi());
-
-        AirQualityDTO.Pollutant pollutants = new AirQualityDTO.Pollutant(
-                airData.getComponents().getCo(),
-                airData.getComponents().getNo(),
-                airData.getComponents().getNo2(),
-                airData.getComponents().getO3(),
-                airData.getComponents().getSo2(),
-                airData.getComponents().getPm2_5(),
-                airData.getComponents().getPm10(),
-                airData.getComponents().getNh3()
+        AirQualityDTO airQualityDTO = new AirQualityDTO(
+                city, LocalDateTime.now(),
+                new AirQualityDTO.AirQuality(airData.getMain().getAqi()),
+                new AirQualityDTO.Pollutant(
+                        airData.getComponents().getCo(),
+                        airData.getComponents().getNo(),
+                        airData.getComponents().getNo2(),
+                        airData.getComponents().getO3(),
+                        airData.getComponents().getSo2(),
+                        airData.getComponents().getPm2_5(),
+                        airData.getComponents().getPm10(),
+                        airData.getComponents().getNh3()
+                )
         );
-
-        return new AirQualityDTO(city, LocalDateTime.now(), airQuality, pollutants);
+        // Registrar auditoría con el usuario autenticado
+        auditService.registerQuery(securityService.getAuthenticatedUser(), "airQuality", city, airQualityDTO);
+        return airQualityDTO;
     }
 
-    /**
-     * Registra una consulta meteorológica en la base de datos para auditoría.
-     * Se almacena el usuario que hizo la consulta, el tipo de consulta y la ciudad consultada.
-     *
-     * @param username       Nombre del usuario que realizó la consulta.
-     * @param queryType      Tipo de consulta (ej. "currentWeather", "forecastWeather").
-     * @param city           Ciudad consultada.
-     * @param responseObject Respuesta de la API almacenada en formato JSON.
-     */
-    @Transactional
-    public void registerQuery(String username, String queryType, String city, Object responseObject) {
-        String responseJson;
-        try {
-            responseJson = objectMapper.writeValueAsString(responseObject);
-        } catch (JsonProcessingException e) {
-            responseJson = "{}";
-        }
-        AuditConsultation query = new AuditConsultation(username,queryType,city, LocalDateTime.now(),responseJson);
-        consultatiorepository.save(query);
-        consultatiorepository.flush(); // Forzar escritura inmediata en la BD
-        logger.info("Consulta guardada correctamente.");
-    }
+
 }

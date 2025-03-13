@@ -13,9 +13,6 @@ FROM openjdk:17-jdk-slim
 # Establecer el directorio de trabajo en el contenedor
 WORKDIR /app
 
-# Instalar Redis CLI
-RUN apt-get update && apt-get install -y redis-tools
-
 # Copiar el JAR generado en la fase de construcción
 COPY --from=builder /app/target/api_meteorologica-0.0.1-SNAPSHOT.jar app.jar
 
