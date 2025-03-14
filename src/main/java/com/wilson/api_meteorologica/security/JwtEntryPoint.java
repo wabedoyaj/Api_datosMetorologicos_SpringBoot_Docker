@@ -43,7 +43,7 @@ public class JwtEntryPoint implements AuthenticationEntryPoint {
         errorDetails.put("timestamp", LocalDateTime.now().toString());
         errorDetails.put("status", HttpServletResponse.SC_UNAUTHORIZED);
         errorDetails.put("error", "Unauthorized");
-        errorDetails.put("message", "No autorizado");
+        errorDetails.put("message", "No tiene las credenciales de autenticación");
         errorDetails.put("path", req.getRequestURI());
 
         // Convertir la respuesta a JSON y enviarla

@@ -1,6 +1,7 @@
 package com.wilson.api_meteorologica.service;
 
 
+
 import com.wilson.api_meteorologica.DTO.AirQualityDTO;
 import com.wilson.api_meteorologica.DTO.WeatherDTO;
 import com.wilson.api_meteorologica.DTO.WeatherForecastDTO;
@@ -15,11 +16,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 
 
-
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -35,22 +40,21 @@ public class WeatherService {
     @Autowired
     private SecurityService securityService;
     private final WebClient webClient;
-    private static final Logger logger =  LoggerFactory.getLogger(WeatherService.class);
     @Autowired
-    public WeatherService(@Value("${openweathermap.api.base-url}") String baseUrl) {
-        this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)  // Usa la URL desde application.properties
-                .build();
-    }
+    private CacheManager cacheManager;
+    private static final Logger logger =  LoggerFactory.getLogger(WeatherService.class);
 
+    public WeatherService(@Value("${openweathermap.api.base-url}") String baseUrl) {
+        this.webClient = WebClient.builder().baseUrl(baseUrl).build(); // Usa la URL desde application.properties
+    }
     /**
      * Obtiene el clima actual de una ciudad desde OpenWeatherMap.
      * Los resultados se almacenan en caché para mejorar el rendimiento.
      * @param city Nombre de la ciudad a consultar.
      * @return Objeto WeatherDTO con la información del clima.
      */
-    @Cacheable("currentWeather") // Caché para el clima actual
-    public WeatherDTO getCurrentWeather(String city) {
+    @Cacheable(value = "currentWeather", key = "#city") // Caché para el clima actual
+    public WeatherDTO getCurrentWeatherFromApi(String city) {
         WeatherResponse response = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/weather")
                         .queryParam("q", city)
@@ -60,7 +64,8 @@ public class WeatherService {
                 .retrieve()
                 .bodyToMono(WeatherResponse.class)
                 .block();
-        WeatherDTO weatherDTO =  new WeatherDTO(
+
+        WeatherDTO weatherDTO = new WeatherDTO(
                 response.getName(),
                 response.getWeather().get(0).getDescription(),
                 response.getMain().getTemp(),
@@ -68,11 +73,6 @@ public class WeatherService {
                 response.getWind().getSpeed(),
                 LocalDateTime.now()
         );
-        // Obtener usuario autenticado desde SecurityService
-        String username = securityService.getAuthenticatedUser();
-        // Registrar auditoría con el usuario autenticado
-        auditService.registerQuery(username, "currentWeather", city, weatherDTO);
-
         return weatherDTO;
     }
     /**
@@ -81,8 +81,8 @@ public class WeatherService {
      * @param city Nombre de la ciudad a consultar.
      * @return Objeto WeatherForecastDTO con la información del pronóstico.
      */
-    @Cacheable("forecastWeather") // Caché para el pronóstico
-    public WeatherForecastDTO getWeatherForecast(String city) {
+    @Cacheable(value = "forecastWeather", key = "#city") // Caché para el pronóstico
+    public WeatherForecastDTO getWeatherForecastFromApi(String city) {
         WeatherForecastResponse response = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/forecast")
                         .queryParam("q", city)
@@ -92,23 +92,37 @@ public class WeatherService {
                 .retrieve()
                 .bodyToMono(WeatherForecastResponse.class)
                 .block();
-        //  // Convertir la respuesta en una lista de detalles del pronóstico
-        List<WeatherForecastDTO.ForecastDetail> forecastList = response.getList().stream().map(forecast -> {
-            double rainMm = forecast.getRain() != null ? forecast.getRain().get_3h() : 0.0;
-            return new WeatherForecastDTO.ForecastDetail(
-                    forecast.getDt_txt(),
-                    forecast.getWeather().get(0).getDescription(),
-                    forecast.getMain().getTemp(),
-                    forecast.getMain().getFeels_like(),
-                    forecast.getMain().getHumidity(),
-                    forecast.getWind().getSpeed() * 3.6, // Convertimos de m/s a km/h
-                    (int) (forecast.getPop() * 100), // Convertimos de 0-1 a porcentaje
-                    rainMm
-            );
-        }).collect(Collectors.toList());
+        // Usamos un LinkedHashMap para mantener el orden y evitar duplicados
+        Map<LocalDate, WeatherForecastDTO.ForecastDetail> filteredForecast = new LinkedHashMap<>();
+
+        for (WeatherForecastResponse.Forecast forecast : response.getList()) {
+            LocalDate date = LocalDate.parse(forecast.getDt_txt().substring(0, 10)); // Extraer solo la fecha (YYYY-MM-DD)
+
+            // Si aún no tenemos datos para este día, lo agregamos
+            if (!filteredForecast.containsKey(date)) {
+                double rainMm = forecast.getRain() != null ? forecast.getRain().get_3h() : 0.0;
+
+                WeatherForecastDTO.ForecastDetail forecastDetail = new WeatherForecastDTO.ForecastDetail(
+                        forecast.getDt_txt(),
+                        forecast.getWeather().get(0).getDescription(),
+                        forecast.getMain().getTemp(),
+                        forecast.getMain().getFeels_like(),
+                        forecast.getMain().getHumidity(),
+                        forecast.getWind().getSpeed() * 3.6, // Convertimos m/s a km/h
+                        (int) (forecast.getPop() * 100), // Convertimos de 0-1 a porcentaje
+                        rainMm
+                );
+
+                filteredForecast.put(date, forecastDetail);
+            }
+        }
+        // Convertimos el mapa a una lista y limitamos a 5 días
+        List<WeatherForecastDTO.ForecastDetail> forecastList = filteredForecast.values()
+                .stream()
+                .limit(5)
+                .collect(Collectors.toList());
+        // Crear objeto de respuesta
         WeatherForecastDTO forecastDTO = new WeatherForecastDTO(response.getCity().getName(), LocalDateTime.now(), forecastList);
-        // Registrar auditoría con el usuario autenticado
-        auditService.registerQuery(securityService.getAuthenticatedUser(), "forecastWeather", city, forecastDTO);
         return forecastDTO;
     }
     /**
@@ -119,9 +133,8 @@ public class WeatherService {
      * @param city Nombre de la ciudad a consultar.
      * @return Objeto AirQualityDTO con la información sobre la calidad del aire.
      */
-    @Cacheable("airQuality") // Caché para la contaminación del aire
-    public AirQualityDTO getAirQuality(String city) {
-        // Obtener coordenadas geográficas de la ciudad
+    @Cacheable(value = "airQuality", key = "#city") // Caché para la contaminación del aire
+    public AirQualityDTO getAirQualityFromApi(String city) {
         WeatherResponse geoResponse = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/weather")
                         .queryParam("q", city)
@@ -134,7 +147,6 @@ public class WeatherService {
         double lat = geoResponse.getCoord().getLat();
         double lon = geoResponse.getCoord().getLon();
 
-        // Obtener calidad del aire con las coordenadas
         AirQualityResponse airResponse = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/air_pollution")
                         .queryParam("lat", lat)
@@ -160,9 +172,24 @@ public class WeatherService {
                         airData.getComponents().getNh3()
                 )
         );
-        // Registrar auditoría con el usuario autenticado
-        auditService.registerQuery(securityService.getAuthenticatedUser(), "airQuality", city, airQualityDTO);
         return airQualityDTO;
+    }
+
+    public WeatherForecastDTO getWeatherForecast(String city) {
+        WeatherForecastDTO forecast = getWeatherForecastFromApi(city);
+        auditService.registerQuery("forecastWeather", city, forecast);
+        return forecast;
+    }
+
+    public WeatherDTO getCurrentWeather(String city) {
+        WeatherDTO weather = getCurrentWeatherFromApi(city);
+        auditService.registerQuery("currentWeather", city, weather);
+        return weather;
+    }
+    public AirQualityDTO getAirQuality(String city) {
+        AirQualityDTO airQuality = getAirQualityFromApi(city);
+        auditService.registerQuery("airQuality", city, airQuality);
+        return airQuality;
     }
 
 

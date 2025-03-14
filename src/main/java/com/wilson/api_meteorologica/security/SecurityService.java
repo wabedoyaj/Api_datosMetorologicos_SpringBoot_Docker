@@ -8,18 +8,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class SecurityService {
-    /**
-     * Obtiene el nombre de usuario del usuario autenticado en la sesión actual.
-     *
-     * @return Nombre de usuario autenticado, o "anonymous" si no hay usuario autenticado.
-     */
-    public String getAuthenticatedUser() { //obtenerUsuarioAutenticado
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
-        if (principal instanceof UserDetails) {
-            return ((UserDetails) principal).getUsername(); // Retorna el username autenticado
-        }
-
-        return "anonymous"; //  Si no hay usuario autenticado, usa "anonymous"
+    public String getAuthenticatedUser() {
+        return SecurityContextHolder.getContext().getAuthentication().getName();
     }
+
 }
